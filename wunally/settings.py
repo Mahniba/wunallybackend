@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "health",
     "care",
     "support",
+    "network",
     "research",
     "api",
 ]
@@ -141,8 +142,13 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "60/min",
         "user": "300/min",
+        "chat": "30/min",
     },
 }
+
+OPENAI_API_KEY = config("OPENAI_API_KEY", default="")
+OPENAI_MODEL = config("OPENAI_MODEL", default="gpt-4o-mini")
+CHAT_MAX_TOKENS = config("CHAT_MAX_TOKENS", default=500, cast=int)
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Wunally API",
@@ -161,7 +167,8 @@ SPECTACULAR_SETTINGS = {
         {"name": "Health", "description": "Symptom and mood check-in data"},
         {"name": "Care", "description": "Reminders, emergency contacts, and care plan notes"},
         {"name": "Support", "description": "Chat, symptom alerts, and SOS events (research)"},
-        {"name": "Research", "description": "Data export and account deletion (study participants)"},
+        {"name": "Network", "description": "Health Support Network providers and facilities"},
+        {"name": "Research", "description": "Data export, consent, and evaluation (study participants)"},
     ],
     "APPEND_COMPONENTS": {
         "securitySchemes": {

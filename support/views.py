@@ -3,11 +3,12 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .chat_logic import DISCLAIMER, reply_for_message
-from .models import AlertEvent, SOSEvent
+from .models import AlertEvent, ChatMessage, SOSEvent
+from .openai_chat import generate_chat_reply
 from .serializers import (
     AlertEventCreateSerializer,
     AlertEventSerializer,
+    ChatHistorySerializer,
     ChatMessageSerializer,
     ChatResponseSerializer,
     SOSEventCreateSerializer,
@@ -18,22 +19,66 @@ from .serializers import (
 @extend_schema_view(
     post=extend_schema(
         tags=["Support"],
-        summary="Send chat message",
+        summary="Send chat message (OpenAI with safety fallback)",
         operation_id="support_chat_send",
         request=ChatMessageSerializer,
         responses={200: ChatResponseSerializer},
-        description="Informational support chat (not for diagnosis). Requires Bearer JWT.",
+    ),
+    get=extend_schema(
+        tags=["Support"],
+        summary="List recent chat messages",
+        responses={200: ChatHistorySerializer(many=True)},
     ),
 )
 class ChatMessageView(APIView):
+    def get(self, request):
+        mode = request.query_params.get("mode")
+        qs = ChatMessage.objects.filter(user=request.user).order_by("-created_at")[:50]
+        if mode in ("ai", "nurse"):
+            qs = qs.filter(mode=mode)
+        data = ChatHistorySerializer(reversed(list(qs)), many=True).data
+        return Response(data)
+
     def post(self, request):
         serializer = ChatMessageSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        text = serializer.validated_data["text"]
+        data = serializer.validated_data
+        text = data["text"]
+        mode = data.get("mode", "ai")
+        input_mode = data.get("input_mode", "text")
+        language = data.get("language", "en")
+        provider_id = data.get("provider_id")
+
+        ChatMessage.objects.create(
+            user=request.user,
+            role="user",
+            text=text,
+            mode=mode,
+            input_mode=input_mode,
+            provider_id=provider_id,
+        )
+
+        result = generate_chat_reply(
+            request.user, text, mode=mode, language=language
+        )
+
+        ChatMessage.objects.create(
+            user=request.user,
+            role="assistant",
+            text=result["text"],
+            mode=mode,
+            input_mode=input_mode,
+            provider_id=provider_id,
+            escalated=result.get("escalated", False),
+            source=result.get("source", ""),
+        )
+
         return Response(
             {
-                "text": reply_for_message(text),
-                "disclaimer": DISCLAIMER,
+                "text": result["text"],
+                "disclaimer": result["disclaimer"],
+                "escalated": result.get("escalated", False),
+                "source": result.get("source", ""),
             }
         )
 
@@ -78,5 +123,6 @@ class SOSEventListCreateView(generics.ListCreateAPIView):
     def post(self, request, *args, **kwargs):
         body = SOSEventCreateSerializer(data=request.data)
         body.is_valid(raise_exception=True)
-        event = SOSEvent.objects.create(user=request.user, **body.validated_data)
+        payload = body.validated_data
+        event = SOSEvent.objects.create(user=request.user, **payload)
         return Response(SOSEventSerializer(event).data, status=status.HTTP_201_CREATED)
