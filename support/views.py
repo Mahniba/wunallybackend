@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 
 from .models import AlertEvent, ChatMessage, SOSEvent
 from .openai_chat import generate_chat_reply
+from .throttles import ChatRateThrottle
 from .serializers import (
     AlertEventCreateSerializer,
     AlertEventSerializer,
@@ -31,11 +32,17 @@ from .serializers import (
     ),
 )
 class ChatMessageView(APIView):
+    def get_throttles(self):
+        if self.request.method == "POST":
+            return [ChatRateThrottle()]
+        return []
+
     def get(self, request):
         mode = request.query_params.get("mode")
-        qs = ChatMessage.objects.filter(user=request.user).order_by("-created_at")[:50]
+        qs = ChatMessage.objects.filter(user=request.user)
         if mode in ("ai", "nurse"):
             qs = qs.filter(mode=mode)
+        qs = qs.order_by("-created_at")[:50]
         data = ChatHistorySerializer(reversed(list(qs)), many=True).data
         return Response(data)
 
@@ -58,8 +65,23 @@ class ChatMessageView(APIView):
             provider_id=provider_id,
         )
 
+        prior = (
+            ChatMessage.objects.filter(user=request.user, mode=mode)
+            .order_by("-created_at")[1:21]
+        )
+        history = [
+            {"role": msg.role, "content": msg.text}
+            for msg in reversed(list(prior))
+            if msg.role in ("user", "assistant")
+        ]
+
         result = generate_chat_reply(
-            request.user, text, mode=mode, language=language
+            request.user,
+            text,
+            mode=mode,
+            language=language,
+            history=history,
+            provider_id=provider_id,
         )
 
         ChatMessage.objects.create(

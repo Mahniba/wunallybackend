@@ -76,16 +76,79 @@ def build_user_context(user) -> str:
     except PregnancyProfile.DoesNotExist:
         pass
 
+    try:
+        care = user.care_plan_notes
+        if care.medical.strip():
+            parts.append(f"Care plan (medical/allergies): {care.medical.strip()[:400]}.")
+        if care.labour_preferences.strip():
+            parts.append(f"Labour preferences: {care.labour_preferences.strip()[:200]}.")
+    except Exception:
+        pass
+
     warnings = _recent_warning_signs(user)
     if warnings:
         labels = ", ".join(SYMPTOM_LABELS.get(k, k) for k in warnings[:5])
         parts.append(f"Recent warning signs logged in app: {labels}.")
 
+    since = timezone.now() - timezone.timedelta(days=7)
+    recent_keys: list[str] = []
+    for entry in SymptomEntry.objects.filter(user=user, recorded_at__gte=since).order_by("-recorded_at")[:8]:
+        for key, active in (entry.symptoms or {}).items():
+            if active and key not in recent_keys:
+                recent_keys.append(key)
+    if recent_keys:
+        labels = ", ".join(SYMPTOM_LABELS.get(k, k.replace("_", " ")) for k in recent_keys[:6])
+        parts.append(f"Symptoms logged in the last 7 days: {labels}.")
+
     mood = MoodEntry.objects.filter(user=user).order_by("-recorded_at").first()
     if mood:
         parts.append(f"Most recent mood check-in: {mood.mood}.")
+        if mood.note and mood.note.strip():
+            parts.append(f"Mood note: {mood.note.strip()[:200]}.")
 
     return " ".join(parts) if parts else "No profile context yet."
+
+
+def _provider_context(provider_id: int | None, mode: str) -> str:
+    if mode != "nurse" or not provider_id:
+        return ""
+    try:
+        from network.models import HealthProvider
+
+        provider = HealthProvider.objects.filter(id=provider_id, active=True).first()
+        if not provider:
+            return ""
+        langs = ", ".join(provider.languages) if provider.languages else "English"
+        return (
+            f"The user is in nurse chat mode. Assigned care provider: {provider.name} "
+            f"({provider.get_role_display()}) at {provider.facility or 'local facility'}. "
+            f"Languages: {langs}. Respond as supportive nursing staff would — educational, not diagnostic."
+        )
+    except Exception:
+        return ""
+
+
+def _build_openai_messages(
+    *,
+    system: str,
+    lang_hint: str,
+    context: str,
+    provider_context: str,
+    history: list[dict[str, str]] | None,
+    user_text: str,
+) -> list[dict[str, str]]:
+    system_content = f"{system}\n{lang_hint}\nUser context: {context}"
+    if provider_context:
+        system_content += f"\n{provider_context}"
+
+    messages: list[dict[str, str]] = [{"role": "system", "content": system_content}]
+    for turn in (history or [])[-16:]:
+        role = turn.get("role")
+        content = (turn.get("content") or "").strip()
+        if role in ("user", "assistant") and content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": user_text})
+    return messages
 
 
 def _openai_client():
@@ -103,6 +166,8 @@ def generate_chat_reply(
     *,
     mode: str = "ai",
     language: str = "en",
+    history: list[dict[str, str]] | None = None,
+    provider_id: int | None = None,
 ) -> dict[str, Any]:
     """Return {text, disclaimer, escalated, source}. Falls back to rules if no API key."""
     cleaned = (text or "").strip()
@@ -141,12 +206,18 @@ def generate_chat_reply(
     system = NURSE_SYSTEM if mode == "nurse" else AI_SYSTEM
     lang_hint = "Reply in French." if language.startswith("fr") else "Reply in English."
     context = build_user_context(user)
+    provider_context = _provider_context(provider_id, mode)
 
-    messages = [
-        {"role": "system", "content": f"{system}\n{lang_hint}\nUser context: {context}"},
-        {"role": "user", "content": cleaned},
-    ]
+    messages = _build_openai_messages(
+        system=system,
+        lang_hint=lang_hint,
+        context=context,
+        provider_context=provider_context,
+        history=history,
+        user_text=cleaned,
+    )
 
+    source = "openai"
     try:
         completion = client.chat.completions.create(
             model=model,
@@ -157,6 +228,7 @@ def generate_chat_reply(
         reply_text = (completion.choices[0].message.content or "").strip() or DEFAULT_REPLY
     except Exception:
         reply_text = reply_for_message(cleaned)
+        source = "rules"
 
     if escalated and "provider" not in reply_text.lower() and "clinic" not in reply_text.lower():
         prefix = (
@@ -170,5 +242,5 @@ def generate_chat_reply(
         "text": reply_text,
         "disclaimer": DISCLAIMER,
         "escalated": escalated,
-        "source": "openai",
+        "source": source,
     }

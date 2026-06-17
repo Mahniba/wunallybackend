@@ -135,14 +135,12 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.JSONParser",
     ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "DEFAULT_THROTTLE_CLASSES": (
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
-    ),
+    # Throttle only sensitive endpoints (auth, chat). Normal sync/tips/read traffic is unlimited.
+    "DEFAULT_THROTTLE_CLASSES": (),
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "60/min",
-        "user": "300/min",
-        "chat": "30/min",
+        "anon": "120/min",
+        "auth": "30/min",
+        "chat": "60/min",
     },
 }
 

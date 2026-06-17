@@ -66,7 +66,11 @@ class PersonalizedTipsView(APIView):
             except (TypeError, ValueError):
                 week = None
 
-        tips = build_personalized_tips(request.user, week=week)
+        tips = build_personalized_tips(
+            request.user,
+            week=week,
+            language=request.query_params.get("language", "en"),
+        )
         resolved_week = week
         if resolved_week is None:
             try:

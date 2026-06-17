@@ -142,6 +142,27 @@ CHAT_SUPPORT_OPTIONS = [
 ]
 
 CHAT_CONFIG = {
+    "welcome_message_en": (
+        "Hi! I'm here for general pregnancy support and tips. "
+        "Ask me anything—this is not a substitute for medical care."
+    ),
+    "welcome_message_fr": (
+        "Bonjour ! Je suis là pour un soutien général et des conseils sur la grossesse. "
+        "Posez-moi vos questions — ceci ne remplace pas un avis médical."
+    ),
+    "voice_prompts_en": [
+        "I'd like some support.",
+        "Can you give me a quick tip?",
+        "How am I doing this week?",
+    ],
+    "voice_prompts_fr": [
+        "J'aimerais un peu de soutien.",
+        "Pouvez-vous me donner un conseil rapide ?",
+        "Comment je m'en sors cette semaine ?",
+    ],
+    "input_placeholder_en": "Type your message...",
+    "input_placeholder_fr": "Écrivez votre message...",
+    # Legacy keys for older clients
     "welcome_message": (
         "Hi! I'm here for general pregnancy support and tips. "
         "Ask me anything—this is not a substitute for medical care."

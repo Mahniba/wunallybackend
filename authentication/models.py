@@ -28,6 +28,8 @@ class User(AbstractUser):
     username = None
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=120, blank=True)
+    phone = models.CharField(max_length=32, blank=True, default="")
+    phone_verified = models.BooleanField(default=False)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []

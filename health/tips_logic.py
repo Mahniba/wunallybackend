@@ -67,27 +67,40 @@ SYMPTOM_GUIDANCE: dict[str, str] = {
 }
 
 
-def _week_band_tip(week: int) -> dict[str, str]:
+def _week_band_tip(week: int, language: str = "en") -> dict[str, str]:
+    fr = language.startswith("fr")
     if week <= 13:
         return {
-            "title": f"First trimester focus (Week {week})",
-            "body": "Folate, rest when tired, and small frequent meals if nauseous. Book or keep your prenatal visits.",
+            "title": f"{'Premier trimestre' if fr else 'First trimester focus'} (Week {week})",
+            "body": (
+                "Acide folique, repos si fatigue, petits repas fréquents si nausées. Gardez vos visites prénatales."
+                if fr
+                else "Folate, rest when tired, and small frequent meals if nauseous. Book or keep your prenatal visits."
+            ),
             "source": "week",
         }
     if week <= 27:
         return {
-            "title": f"Second trimester focus (Week {week})",
-            "body": "Many feel more energy now — stay active gently, eat iron-rich foods, and note baby movements as they begin.",
+            "title": f"{'Deuxième trimestre' if fr else 'Second trimester focus'} (Week {week})",
+            "body": (
+                "Beaucoup ont plus d'énergie — restez active doucement, mangez riche en fer, notez les mouvements du bébé."
+                if fr
+                else "Many feel more energy now — stay active gently, eat iron-rich foods, and note baby movements as they begin."
+            ),
             "source": "week",
         }
     return {
-        "title": f"Third trimester focus (Week {week})",
-        "body": "Rest when needed, sleep on your side if comfortable, and know your warning signs. Keep prenatal appointments.",
+        "title": f"{'Troisième trimestre' if fr else 'Third trimester focus'} (Week {week})",
+        "body": (
+            "Reposez-vous, dormez sur le côté si possible, connaissez les signes d'alerte. Gardez vos rendez-vous."
+            if fr
+            else "Rest when needed, sleep on your side if comfortable, and know your warning signs. Keep prenatal appointments.",
+        ),
         "source": "week",
     }
 
 
-def build_personalized_tips(user, week: int | None = None) -> list[dict[str, Any]]:
+def build_personalized_tips(user, week: int | None = None, language: str = "en") -> list[dict[str, Any]]:
     tips: list[dict[str, Any]] = []
     seen_titles: set[str] = set()
 
@@ -183,29 +196,58 @@ def build_personalized_tips(user, week: int | None = None) -> list[dict[str, Any
                 "pain",
             )
 
-    # --- Profile ---
+    # --- Profile & care plan ---
     if profile:
         if profile.health_conditions.strip():
             add(
-                "Your health note",
-                f'You noted: "{profile.health_conditions.strip()}". '
-                "Bring questions about this to your next appointment.",
+                "Votre note de santé" if language.startswith("fr") else "Your health note",
+                (
+                    f'Vous avez noté : « {profile.health_conditions.strip()} ». '
+                    "Parlez-en à votre prochain rendez-vous."
+                    if language.startswith("fr")
+                    else f'You noted: "{profile.health_conditions.strip()}". '
+                    "Bring questions about this to your next appointment."
+                ),
                 "profile",
             )
         try:
             age = int(profile.age)
             if age >= 35:
                 add(
-                    "Appointments & monitoring",
-                    "If you're 35+, your provider may recommend extra monitoring. "
-                    "Keep appointments and ask which warning signs should prompt a call.",
+                    "Suivi & rendez-vous" if language.startswith("fr") else "Appointments & monitoring",
+                    (
+                        "À 35 ans et plus, un suivi renforcé peut être recommandé. "
+                        "Gardez vos rendez-vous et demandez quels signes nécessitent un appel."
+                        if language.startswith("fr")
+                        else "If you're 35+, your provider may recommend extra monitoring. "
+                        "Keep appointments and ask which warning signs should prompt a call."
+                    ),
                     "profile",
                 )
         except (TypeError, ValueError):
             pass
 
+    try:
+        from care.models import CarePlanNotes
+
+        care = CarePlanNotes.objects.filter(user=user).first()
+        if care and care.medical.strip():
+            add(
+                "Plan de soins" if language.startswith("fr") else "Care plan",
+                (
+                    f"Vos notes : « {care.medical.strip()[:180]} ». "
+                    "Suivez les conseils de votre prestataire."
+                    if language.startswith("fr")
+                    else f'Your notes: "{care.medical.strip()[:180]}". '
+                    "Keep following your provider's guidance."
+                ),
+                "care_plan",
+            )
+    except Exception:
+        pass
+
     # --- Week context (always include one band tip) ---
-    band = _week_band_tip(resolved_week)
+    band = _week_band_tip(resolved_week, language)
     add(band["title"], band["body"], band["source"])
 
     return tips[:8]

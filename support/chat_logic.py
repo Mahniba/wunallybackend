@@ -11,8 +11,18 @@ CHAT_REPLIES = [
      "Nausea is common. Small, bland snacks can help. If you cannot keep fluids down, see your provider."),
     (["stress", "anxious", "worry", "nervous"],
      "It is normal to feel worried sometimes. If anxiety affects daily life, your provider can suggest support."),
-    (["bleed", "bleeding", "spotting"],
+    (["bleed", "bleeding", "spotting", "saign", "saignement"],
      "Any bleeding in pregnancy should be checked. Contact your care provider promptly."),
+    (["manger", "repas", "nutrition", "faim", "nourriture"],
+     "Focus on iron-rich foods like spinach, beans, and lean meat. Small, frequent meals can help with nausea. Stay hydrated."),
+    (["douleur", "mal", "crampes"],
+     "Some discomfort is common in pregnancy. If pain is severe or persistent, contact your care provider."),
+    (["dormir", "fatigue", "repos", "épuisée"],
+     "Rest when you can. Sleeping on your left side in later pregnancy can help."),
+    (["nausée", "vomir", "malade"],
+     "Nausea is common. Small, bland snacks can help. If you cannot keep fluids down, see your provider."),
+    (["stress", "anxieux", "inquiet", "inquiète", "nerveux"],
+     "It is normal to feel worried sometimes. If anxiety affects daily life, your provider can suggest support."),
 ]
 
 DEFAULT_REPLY = (

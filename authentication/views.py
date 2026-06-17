@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .throttles import AuthRateThrottle
 from .serializers import (
     AuthResponseSerializer,
     LoginSerializer,
@@ -24,6 +25,7 @@ def _auth_response(user) -> dict:
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [AuthRateThrottle]
 
     @extend_schema(
         tags=["Auth"],
@@ -40,6 +42,7 @@ class RegisterView(APIView):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [AuthRateThrottle]
 
     @extend_schema(
         tags=["Auth"],
